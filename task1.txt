@@ -1,0 +1,137 @@
+Here’s a complete working Python script for **Task 1: Validating X-ray Images** using **both approaches**:
+
+1. **Image processing method with OpenCV**
+2. **Optional: Machine learning (template for training a model)**
+
+---
+
+## ✅ Approach 1: OpenCV (Image Processing) – Full Code
+
+```python
+import cv2
+import numpy as np
+import os
+from scipy.signal import find_peaks
+import matplotlib.pyplot as plt
+
+def is_valid_xray(image_path, debug=False):
+    # Load grayscale image
+    img = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
+    if img is None:
+        print(f"Failed to read: {image_path}")
+        return False
+
+    h, w = img.shape
+    right_crop = img[:, int(w * 0.8):]  # Crop right 20%
+
+    # Contrast enhancement (optional but useful)
+    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+    enhanced = clahe.apply(right_crop)
+
+    # Apply Gaussian Blur and Canny edge detection
+    blurred = cv2.GaussianBlur(enhanced, (5, 5), 0)
+    edges = cv2.Canny(blurred, 50, 150)
+
+    # Sum pixel intensities vertically
+    vertical_sum = np.sum(edges, axis=0)
+
+    # Detect peaks (strips)
+    peaks, _ = find_peaks(vertical_sum, height=50, distance=10)  # tweak if needed
+
+    if debug:
+        print(f"Detected {len(peaks)} vertical strips in {image_path}")
+        plt.figure(figsize=(10, 3))
+        plt.subplot(1, 3, 1)
+        plt.imshow(img, cmap='gray')
+        plt.title("Original")
+        plt.axis("off")
+
+        plt.subplot(1, 3, 2)
+        plt.imshow(edges, cmap='gray')
+        plt.title("Edges (Canny)")
+        plt.axis("off")
+
+        plt.subplot(1, 3, 3)
+        plt.plot(vertical_sum)
+        plt.title("Vertical Projection")
+        plt.tight_layout()
+        plt.show()
+
+    return len(peaks) > 6
+
+# Folder with X-ray images
+image_folder = "xray_images/"
+
+for filename in os.listdir(image_folder):
+    if filename.lower().endswith(('.jpg', '.png', '.jpeg')):
+        img_path = os.path.join(image_folder, filename)
+        result = is_valid_xray(img_path, debug=False)
+        print(f"{filename}: {'✅ Valid' if result else '❌ Invalid'}")
+```
+
+---
+
+## ⚠️ If This Fails (Strips Not Clear) — Use Machine Learning
+
+You can use **this template** to train a simple CNN with labeled images (`valid`, `invalid`) using PyTorch:
+
+### 🧠 Simple CNN Training Template (PyTorch)
+
+```bash
+# Folder structure
+dataset/
+├── valid/
+│   ├── img1.jpg ...
+├── invalid/
+│   ├── img2.jpg ...
+```
+
+```python
+import torch
+import torch.nn as nn
+import torchvision
+import torchvision.transforms as transforms
+from torch.utils.data import DataLoader
+from torchvision.datasets import ImageFolder
+
+# Data transforms
+transform = transforms.Compose([
+    transforms.Resize((224, 224)),
+    transforms.ToTensor()
+])
+
+# Load data
+train_data = ImageFolder(root='dataset/', transform=transform)
+train_loader = DataLoader(train_data, batch_size=8, shuffle=True)
+
+# Load pre-trained model and modify
+model = torchvision.models.resnet18(pretrained=True)
+model.fc = nn.Linear(model.fc.in_features, 2)  # Valid or Invalid
+
+# Train setup
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+model = model.to(device)
+criterion = nn.CrossEntropyLoss()
+optimizer = torch.optim.Adam(model.parameters(), lr=1e-4)
+
+# Train loop
+for epoch in range(5):
+    model.train()
+    for imgs, labels in train_loader:
+        imgs, labels = imgs.to(device), labels.to(device)
+        outputs = model(imgs)
+        loss = criterion(outputs, labels)
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
+    print(f"Epoch {epoch+1} done")
+
+# Save the model
+torch.save(model.state_dict(), 'xray_validity_model.pth')
+```
+
+You can use this model later to classify new images as `valid` or `invalid`.
+
+---
+
+Would you like me to build a minimal working model using your own images? You can upload 5–10 sample X-ray images (valid/invalid), and I’ll train and share the results.
